@@ -1,5 +1,3 @@
-// src/music_player.cpp
-
 #include "music_player.h"
 #include "globals.h"
 #include "mqtt.h"
@@ -7,11 +5,10 @@
 #include <string.h> // For strncpy
 
 // --- Task Communication ---
-// Use fixed-size char arrays. This is thread-safe and avoids dynamic memory issues.
 struct MusicInfo {
-    char url[256];    // A generous buffer for the URL
-    char track[128];  // Buffer for track name
-    char artist[128]; // Buffer for artist name
+    char url[256];
+    char track[128];
+    char artist[128];
 };
 
 static QueueHandle_t music_info_queue;
@@ -20,56 +17,120 @@ static QueueHandle_t music_info_queue;
 constexpr size_t MAX_IMAGE_SIZE = 200 * 1024;
 static uint8_t* image_download_buffer = nullptr;
 static lv_img_dsc_t artwork_img_dsc;
+// A static copy of the latest info for LVGL async callbacks to safely access
+static MusicInfo static_info_for_lvgl;
 
 // =========================================================================
 // ASYNC LVGL CALLBACKS
 // =========================================================================
+static void update_text_labels_cb(void* user_data) {
+    lv_label_set_text(ui_track_label, static_info_for_lvgl.track);
+    lv_label_set_text(ui_artist_label, static_info_for_lvgl.artist);
+}
+
 static void update_artwork_cb(void* user_data) {
     Serial.println("[LVGL] Async call: Updating artwork.");
+    // Pass the pointer to the image descriptor. LVGL will use the data pointer
+    // and size from this struct to decode and display the image.
     lv_img_set_src(ui_album_art, &artwork_img_dsc);
+    lv_obj_invalidate(ui_album_art); // Force redraw
 }
 
 // =========================================================================
 // THE DOWNLOAD TASK - This runs on Core 0
 // =========================================================================
 void download_image_task(void* parameter) {
+    // --- Retry Parameters ---
+    constexpr int MAX_DOWNLOAD_RETRIES = 3;
+    constexpr int RETRY_DELAY_MS = 1000;
+
     MusicInfo info;
 
     while (true) {
         if (xQueueReceive(music_info_queue, &info, portMAX_DELAY)) {
             Serial.printf("[Task] Received new info. Downloading from %s\n", info.url);
 
-            // --- Safely update text labels IMMEDIATELY ---
-            lv_async_call([](void* data){
-                MusicInfo* p_info = (MusicInfo*)data;
-                lv_label_set_text(ui_track_label, p_info->track);
-                lv_label_set_text(ui_artist_label, p_info->artist);
-                free(data); // Free the memory allocated in the MQTT callback
-            }, strdup(reinterpret_cast<const char*>(&info)));
+            static_info_for_lvgl = info;
+            lv_async_call(update_text_labels_cb, NULL);
 
+            bool download_success = false;
 
-            // --- Perform the BLOCKING download ---
-            HTTPClient http;
-            if (http.begin(info.url)) { // Pass the valid C-string
-                int httpCode = http.GET();
-                if (httpCode == HTTP_CODE_OK) {
-                    int len = http.getSize();
-                    if (len > 0 && len <= MAX_IMAGE_SIZE) {
-                        WiFiClient* stream = http.getStreamPtr();
-                        stream->readBytes(image_download_buffer, len);
-                        Serial.printf("[Task] Image downloaded, %d bytes.\n", len);
+            // --- THE RETRY LOOP (without the mutex) ---
+            for (int i = 0; i < MAX_DOWNLOAD_RETRIES; i++) {
+                Serial.printf("[Task] Download attempt %d/%d...\n", i + 1, MAX_DOWNLOAD_RETRIES);
+                
+                HTTPClient http;
+                http.setTimeout(10000);
+                if (http.begin(info.url)) {
+                    vTaskDelay(pdMS_TO_TICKS(5)); // Small delay to let the connection stabilize
+                    int httpCode = http.GET();
+                    if (httpCode == HTTP_CODE_OK) {
+                        int len = http.getSize(); // Total size of the image
 
-                        artwork_img_dsc.data = image_download_buffer;
-                        artwork_img_dsc.data_size = len;
-                        lv_async_call(update_artwork_cb, NULL);
+                        if (len > 0 && len <= MAX_IMAGE_SIZE) {
+                            WiFiClient* stream = http.getStreamPtr();
+                            
+                            // --- ROBUST CHUNKED READING ---
+                            int bytes_read = 0;
+                            while (bytes_read < len) {
+                                // Wait for data to be available or timeout
+                                if (stream->available()) {
+                                    // Read a chunk of data. The read() function is non-blocking here.
+                                    // We read into the buffer at the correct offset.
+                                    int bytes_to_read = stream->read(image_download_buffer + bytes_read, len - bytes_read);
+                                    if (bytes_to_read > 0) {
+                                        bytes_read += bytes_to_read;
+                                    }
+                                } else {
+                                    // A small delay to prevent a tight loop from starving other tasks
+                                    vTaskDelay(pdMS_TO_TICKS(10));
+                                }
+                            }
+                            // --- END OF CHUNKED READING ---
 
-                    } else { Serial.printf("[Task] Image size invalid (%d) or too large.\n", len); }
-                } else { Serial.printf("[Task] HTTP GET failed, code: %d\n", httpCode); }
-                http.end();
-            } else { Serial.printf("[Task] Unable to connect to %s\n", info.url); }
+                            Serial.printf("[Task] Image downloaded, %d bytes.\n", bytes_read);
+
+                            // Important: Only update LVGL if the download was complete
+                            if(bytes_read == len) {
+                                // --- PNG Header Verification ---
+                                Serial.printf("[Task] PNG Header: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                                    image_download_buffer[0], image_download_buffer[1], image_download_buffer[2], image_download_buffer[3],
+                                    image_download_buffer[4], image_download_buffer[5], image_download_buffer[6], image_download_buffer[7]);
+
+                                // --- Descriptor Update ---
+                                // Clear the struct to avoid any garbage data in the header
+                                memset(&artwork_img_dsc, 0, sizeof(lv_img_dsc_t));
+                                artwork_img_dsc.data = image_download_buffer;
+                                artwork_img_dsc.data_size = len;
+                                
+                                lv_async_call(update_artwork_cb, NULL);
+                                download_success = true;
+                            } else {
+                                Serial.printf("[Task] Download incomplete! Expected %d, got %d.\n", len, bytes_read);
+                            }
+
+                        } else { Serial.printf("[Task] Image size invalid (%d) or too large.\n", len); }
+                    } else { Serial.printf("[Task] HTTP GET failed, code: %d\n", httpCode); }
+                    http.end();
+                } else { Serial.printf("[Task] Unable to connect to %s\n", info.url); }
+
+                if (download_success) {
+                    break; 
+                }
+
+                if (i < MAX_DOWNLOAD_RETRIES - 1) {
+                    Serial.printf("...waiting %dms before retry.\n", RETRY_DELAY_MS);
+                    vTaskDelay(pdMS_TO_TICKS(RETRY_DELAY_MS));
+                }
+            }
+
+            if (!download_success) {
+                Serial.printf("[Task] Failed to download image after %d attempts.\n", MAX_DOWNLOAD_RETRIES);
+            }
         }
     }
 }
+
 
 // =========================================================================
 // MQTT CALLBACK - This runs on Core 1 (very fast!)
@@ -77,9 +138,8 @@ void download_image_task(void* parameter) {
 static void on_music_info_update(const char* url, const char* track, const char* artist) {
     Serial.println("MQTT callback received info, queuing for download task...");
     
-    MusicInfo new_info = {0}; // Initialize struct to all zeros
+    MusicInfo new_info = {0};
 
-    // Safely copy the strings into our struct's fixed-size buffers
     strncpy(new_info.url, url, sizeof(new_info.url) - 1);
     strncpy(new_info.track, track, sizeof(new_info.track) - 1);
     strncpy(new_info.artist, artist, sizeof(new_info.artist) - 1);
