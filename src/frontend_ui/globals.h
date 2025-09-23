@@ -8,7 +8,7 @@
 #include "TCA9555.h"
 
 // =========================================================================
-// MQTT & WIFI CONFIGURATION
+// APPLICATION CONFIGURATION (Passwords, Keys, etc.)
 // =========================================================================
 namespace Config {
     // --- Wi-Fi Credentials ---
@@ -20,49 +20,60 @@ namespace Config {
     constexpr uint16_t    broker_port = 1883;
     constexpr const char* broker_user = "";
     constexpr const char* broker_pass = "";
+
+    // --- MQTT Topics ---
+    constexpr const char* topic_status           = "esp-gui/status";
+    constexpr const char* topic_command          = "esp-gui/command";
+    constexpr const char* topic_brightness       = "esp-gui/brightness";
+    constexpr const char* topic_image            = "music/image";
 }
 
 // =========================================================================
-// HARDWARE CONFIGURATION
+// HARDWARE CONSTANTS (Pins, Dimensions, etc.)
+// =========================================================================
+namespace HW {
+    // --- Display ---
+    constexpr uint32_t screenWidth  = 480;
+    constexpr uint32_t screenHeight = 320;
+
+    // --- FastLED Ring ---
+    constexpr uint8_t LED_DATA_PIN = 39;
+    constexpr int     NUM_LEDS     = 12;
+    #define LED_TYPE    WS2812B   // These are symbols for the library, so #define is appropriate
+    #define COLOR_ORDER GRB
+
+    // --- I2C ---
+    constexpr uint8_t I2C_SDA_PIN = 41;
+    constexpr uint8_t I2C_SCL_PIN = 40;
+    constexpr uint8_t TCA_I2C_ADDR = 0x20;
+
+    // --- I/O Expander Pin Assignments ---
+    constexpr uint8_t ENCODER_A_PIN   = 0;
+    constexpr uint8_t ENCODER_B_PIN   = 1;
+    constexpr uint8_t ENCODER_SW_PIN  = 2;
+    constexpr uint8_t BUTTON_1_PIN    = 3; // Back Switch
+    constexpr uint8_t BUTTON_2_PIN    = 4; // Mode Switch
+}
+
+// =========================================================================
+// GLOBAL OBJECT & VARIABLE DECLARATIONS ('extern')
+// These are just promises; the memory is allocated in main.cpp
 // =========================================================================
 
-// --- Display & Touch ---
+// --- Global Hardware Objects & Buffers ---
 extern LGFX my_lcd;
-static const uint32_t screenWidth  = 480;
-static const uint32_t screenHeight = 320;
-extern lv_color_t buf[screenWidth * 20];
-
-// --- FastLED Ring ---
-#define LED_DATA_PIN   39
-#define LED_TYPE       WS2812B
-#define COLOR_ORDER    GRB
-#define NUM_LEDS       12
-extern CRGB leds[NUM_LEDS];
-
-// --- TCA9535 I/O Expander ---
-#define I2C_SDA_PIN 41
-#define I2C_SCL_PIN 40
 extern TCA9535 TCA;
+extern CRGB leds[HW::NUM_LEDS];
+extern lv_color_t buf[HW::screenWidth * 20];
 
-// --- Input Pin Assignments ---
-#define ENCODER_A_PIN   0
-#define ENCODER_B_PIN   1
-#define ENCODER_SW_PIN  2
-#define BUTTON_1_PIN    3 // Back Switch
-#define BUTTON_2_PIN    4 // Mode Switch
-
-// =========================================================================
-// LVGL & UI GLOBALS
-// =========================================================================
+// --- LVGL UI Objects ---
 extern lv_obj_t *ui_arc;
 extern lv_obj_t *ui_value_label;
 extern lv_obj_t *ui_mode_label;
 extern lv_obj_t *ui_power_switch;
 extern lv_group_t *encoder_group;
 
-// =========================================================================
-// GLOBAL STATE VARIABLES
-// =========================================================================
+// --- Global State Variables ---
 extern int currentMode;
 extern const int totalModes;
 extern const char *modeNames[];
@@ -70,7 +81,7 @@ extern const char *modeNames[];
 extern long encoderValue;
 extern bool ledsOn;
 
-// For hardware input reading
+// For tracking hardware input state
 extern uint8_t lastPinA_State;
 extern uint8_t lastEncSwitchState;
 extern uint8_t lastButton1State;

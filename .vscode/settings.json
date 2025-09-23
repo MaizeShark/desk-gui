@@ -7,6 +7,8 @@
         "vector": "cpp",
         "string_view": "cpp",
         "initializer_list": "cpp",
-        "*.gitattributes": "cpp"
+        "*.gitattributes": "cpp",
+        "list": "cpp",
+        "regex": "cpp"
     }
 }

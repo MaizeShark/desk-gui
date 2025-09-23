@@ -16,7 +16,7 @@ void my_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data) {
 void my_encoder_read(lv_indev_t *indev, lv_indev_data_t *data) {
     data->enc_diff = encoderValue - last_lvgl_encoder_val;
     last_lvgl_encoder_val = encoderValue;
-    data->state = (TCA.read1(ENCODER_SW_PIN) == LOW) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    data->state = (TCA.read1(HW::ENCODER_SW_PIN) == LOW) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 uint32_t my_tick_get_cb(void) { return millis(); }
 
@@ -25,7 +25,7 @@ void lvgl_init() {
     lv_tick_set_cb(my_tick_get_cb);
 
     // Display driver
-    lv_display_t *disp = lv_display_create(screenWidth, screenHeight);
+    lv_display_t *disp = lv_display_create(HW::screenWidth, HW::screenHeight);
     lv_display_set_flush_cb(disp, my_disp_flush);
     lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
 

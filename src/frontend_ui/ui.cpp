@@ -60,5 +60,5 @@ void sync_ui_with_state() {
     lv_label_set_text(ui_mode_label, modeNames[currentMode]);
     if (currentMode == 0) lv_arc_set_range(ui_arc, 0, 100);
     if (currentMode == 1) lv_arc_set_range(ui_arc, 0, 255);
-    if (currentMode == 2) lv_arc_set_range(ui_arc, 0, NUM_LEDS - 1);
+    if (currentMode == 2) lv_arc_set_range(ui_arc, 0, HW::NUM_LEDS - 1);
 }
