@@ -22,12 +22,24 @@ uint32_t my_tick_get_cb(void) { return millis(); }
 
 void lvgl_init() {
     lv_init();
+
+    // --- Calculate the buffer size ONCE ---
+    const size_t buf_size_in_pixels = HW::screenWidth * 20;
+
+    buf = (lv_color_t*) ps_malloc(buf_size_in_pixels * sizeof(lv_color_t));
+    if (buf == nullptr) {
+        Serial.println("FATAL: Failed to allocate LVGL buffer in PSRAM!");
+        // Consider halting or handling the error appropriately
+        while(1) delay(1000); 
+    }
+
     lv_tick_set_cb(my_tick_get_cb);
 
     // Display driver
     lv_display_t *disp = lv_display_create(HW::screenWidth, HW::screenHeight);
     lv_display_set_flush_cb(disp, my_disp_flush);
-    lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+    lv_display_set_buffers(disp, buf, NULL, buf_size_in_pixels, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     // Touch driver
     lv_indev_t *indev = lv_indev_create();

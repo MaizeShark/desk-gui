@@ -109,7 +109,7 @@
  * - LV_OS_MQX
  * - LV_OS_SDL2
  * - LV_OS_CUSTOM */
-#define LV_USE_OS   LV_OS_NONE
+#define LV_USE_OS   LV_OS_FREERTOS
 
 #if LV_USE_OS == LV_OS_CUSTOM
     #define LV_OS_CUSTOM_INCLUDE <stdint.h>
@@ -749,7 +749,7 @@
 #define LV_USE_FS_UEFI 0
 
 /** LODEPNG decoder library */
-#define LV_USE_LODEPNG 0 /* Migrated from LV_USE_PNG in v8 */
+#define LV_USE_LODEPNG 1 /* Migrated from LV_USE_PNG in v8 */
 
 /** PNG decoder(libpng) library */
 #define LV_USE_LIBPNG 0

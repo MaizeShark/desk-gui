@@ -6,10 +6,7 @@
 #include <Arduino.h>
 #include "globals.h"
 
-// Define a function pointer type for our image update callback.
-// This allows main.cpp to provide a function that knows how to handle the image data.
-// It will receive the raw image data (payload) and its length.
-using ImageUpdateCallback = void (*)(const byte* payload, unsigned int length);
+using MusicInfoUpdateCallback = void (*)(const char* url, const char* track, const char* artist);
 
 /**
  * @brief Initializes the MQTT client and sets up the server and callback.
@@ -36,15 +33,15 @@ void publish_status(const char* message);
 void publish_brightness(uint8_t brightness);
 
 /**
- * @brief Registers the function to be called when a new image is received.
- * @param callback The function to call.
- */
-void register_image_update_callback(ImageUpdateCallback callback);
-
-/**
  * @brief Checks if the MQTT client is currently connected.
  * @return true if connected, false otherwise.
  */
 bool is_mqtt_connected();
+
+/**
+ * @brief Registers the function to be called when new music info is received
+ * @param callback The function to call with the parsed URL, track, and artist.
+ */
+void register_music_info_update_callback(MusicInfoUpdateCallback callback);
 
 #endif // MQTT_H

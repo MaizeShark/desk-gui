@@ -3,13 +3,14 @@
 #include "mqtt.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 // Create the underlying WiFi and MQTT client objects
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// To hold the function pointer for the image update
-static ImageUpdateCallback image_update_handler = nullptr;
+// To hold the function pointer for the music update
+static MusicInfoUpdateCallback music_info_handler = nullptr;
 
 // For reconnection logic
 long lastReconnectAttempt = 0;
@@ -22,11 +23,28 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
     // --- Handle Image Topic ---
     if (strcmp(topic, Config::topic_image) == 0) {
-        if (image_update_handler != nullptr) {
-            // Call the registered callback function with the image data
-            image_update_handler(payload, length);
+        JsonDocument doc;
+
+        DeserializationError error = deserializeJson(doc, payload, length, DeserializationOption::NestingLimit(5)); // Good practice
+        if (error) {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.c_str());
+            return;
+        }
+        const char* url = doc["url"];
+        const char* track = doc["track"];
+        const char* artist = doc["artist"];
+
+        // Check that we got all the data we expect
+        if (url == nullptr || track == nullptr || artist == nullptr) {
+            Serial.println("JSON received, but missing required fields (url, track, artist)");
+            return;
+        }
+
+        if (music_info_handler != nullptr) {
+            music_info_handler(url, track, artist);
         } else {
-            Serial.println("Received image, but no handler is registered!");
+            Serial.println("Received music info, but no handler is registered!");
         }
         return; // Done
     }
@@ -151,8 +169,8 @@ void publish_brightness(uint8_t brightness) {
     }
 }
 
-void register_image_update_callback(ImageUpdateCallback callback) {
-    image_update_handler = callback;
+void register_music_info_update_callback(MusicInfoUpdateCallback callback) {
+    music_info_handler = callback;
 }
 
 bool is_mqtt_connected() {

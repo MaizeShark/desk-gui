@@ -12,14 +12,14 @@
 // =========================================================================
 namespace Config {
     // --- Wi-Fi Credentials ---
-    constexpr const char* ssid = "your-ssid";
-    constexpr const char* pass = "your-password";
+    constexpr const char* ssid = "Ironcloud9";
+    constexpr const char* pass = "Nee25022010#*";
 
     // --- MQTT Broker Settings ---
-    constexpr const char* broker_host = "broker.hivemq.com";
+    constexpr const char* broker_host = "192.168.178.15";
     constexpr uint16_t    broker_port = 1883;
-    constexpr const char* broker_user = "";
-    constexpr const char* broker_pass = "";
+    constexpr const char* broker_user = "mqtt";
+    constexpr const char* broker_pass = "mqtt";
 
     // --- MQTT Topics ---
     constexpr const char* topic_status           = "esp-gui/status";
@@ -64,13 +64,20 @@ namespace HW {
 extern LGFX my_lcd;
 extern TCA9535 TCA;
 extern CRGB leds[HW::NUM_LEDS];
-extern lv_color_t buf[HW::screenWidth * 20];
+extern lv_color_t* buf;
 
 // --- LVGL UI Objects ---
+// LED Control UI Elements
 extern lv_obj_t *ui_arc;
 extern lv_obj_t *ui_value_label;
 extern lv_obj_t *ui_mode_label;
 extern lv_obj_t *ui_power_switch;
+
+// --- Music Info UI Elements ---
+extern lv_obj_t *ui_album_art;
+extern lv_obj_t *ui_track_label;
+extern lv_obj_t *ui_artist_label;
+
 extern lv_group_t *encoder_group;
 
 // --- Global State Variables ---
