@@ -5,6 +5,8 @@
 #include "mqtt.h"
 #include <WiFi.h>
 #include "music_player.h"
+#include "spotify.h"
+#include "config.h"
 
 // =========================================================================
 // DEFINITIONS of Global Variables (declared as 'extern' in globals.h)
@@ -53,9 +55,18 @@ void setup_wifi() {
     Serial.print("Connecting to ");
     Serial.println(Config::ssid);
     WiFi.begin(Config::ssid, Config::pass);
-    while (WiFi.status() != WL_CONNECTED) {
+    int wifi_attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && wifi_attempts < 20) {
         delay(500);
         Serial.print(".");
+        wifi_attempts++;
+    }
+    if (WiFi.status() != WL_CONNECTED && wifi_attempts >= 20) {
+        Serial.println("\nFailed to connect to WiFi.");
+        Serial.println("Please check your SSID and password in Config.h");
+        Serial.println("Restarting in 2 seconds to reset...");
+        delay(2000);
+        ESP.restart();
     }
     Serial.println("\nWiFi connected");
     Serial.print("IP address: ");
@@ -73,6 +84,10 @@ void setup() {
     lvgl_init();
     ui_init();
     setup_wifi();
+    
+    spotify_setup();
+    test_spotify();
+
     mqtt_setup();
     music_player_init();
 

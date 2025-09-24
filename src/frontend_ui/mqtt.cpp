@@ -19,7 +19,15 @@ long lastReconnectAttempt = 0;
  * @brief The master callback function for handling all incoming MQTT messages.
  */
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
-    Serial.printf("Message arrived on topic: %s. Length: %u\n", topic, length);
+    #ifdef DEBUG_MQTT
+        Serial.printf("[MQTT] Message arrived on topic: %s. Length: %u\n", topic, length);
+        
+        // To print the payload, we must copy it to a new, null-terminated buffer.
+        char msg_for_debug[length + 1];
+        memcpy(msg_for_debug, payload, length);
+        msg_for_debug[length] = '\0';
+        Serial.printf("[MQTT] Message: %s\n", msg_for_debug);
+    #endif
 
     // --- Handle Image Topic ---
     if (strcmp(topic, Config::topic_image) == 0) {
@@ -27,7 +35,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
         DeserializationError error = deserializeJson(doc, payload, length, DeserializationOption::NestingLimit(5)); // Good practice
         if (error) {
-            Serial.print(F("deserializeJson() failed: "));
+            Serial.print(F("[MQTT] deserializeJson() failed: "));
             Serial.println(error.c_str());
             return;
         }
@@ -37,14 +45,14 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
         // Check that we got all the data we expect
         if (url == nullptr || track == nullptr || artist == nullptr) {
-            Serial.println("JSON received, but missing required fields (url, track, artist)");
+            Serial.println("[MQTT] JSON received, but missing required fields (url, track, artist)");
             return;
         }
 
         if (music_info_handler != nullptr) {
             music_info_handler(url, track, artist);
         } else {
-            Serial.println("Received music info, but no handler is registered!");
+            Serial.println("[MQTT] Received music info, but no handler is registered!");
         }
         return; // Done
     }
@@ -61,7 +69,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (strcmp(topic, Config::topic_brightness) == 0) {
         int brightness = message.toInt();
         brightness = constrain(brightness, 0, 255); // Safety check
-        Serial.printf("Setting display brightness to %d\n", brightness);
+        Serial.printf("[SYSTEM] Setting display brightness to %d\n", brightness);
         my_lcd.setBrightness(brightness);
         // Optional: you could re-publish here to confirm the change, but it
         // might cause a loop if the other side isn't careful.
@@ -70,26 +78,26 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
     // --- Handle Command Topic ---
     else if (strcmp(topic, Config::topic_command) == 0) {
-        Serial.printf("Received command: %s\n", message.c_str());
+        Serial.printf("[MQTT] Received command: %s\n", message.c_str());
         if (message.equalsIgnoreCase("reboot")) {
-            Serial.println("Rebooting device...");
-            publish_status("rebooting");
+            Serial.println("[SYSTEM] Rebooting device...");
+            publish_status("[SYSTEM] rebooting");
             delay(200);
             ESP.restart();
         } 
         else if (message.equalsIgnoreCase("led_on")) {
-            Serial.println("Turning LEDs on");
+            Serial.println("[SYSTEM] Turning LEDs on");
             // Your logic to turn LEDs on
             ledsOn = true;
         }
         else if (message.equalsIgnoreCase("led_off")) {
-            Serial.println("Turning LEDs off");
+            Serial.println("[SYSTEM] Turning LEDs off");
             // Your logic to turn LEDs off
             ledsOn = false;
         }
         // Add more else-if blocks for other commands
         else {
-            Serial.println("Unknown command");
+            Serial.println("[MQTT] Unknown command");
         }
     }
 }
@@ -102,7 +110,7 @@ bool reconnect() {
     String clientId = "esp32-gui-";
     clientId += String(random(0xffff), HEX);
 
-    Serial.print("Attempting MQTT connection...");
+    Serial.print("[MQTT] Attempting MQTT connection...");
     if (client.connect(clientId.c_str(), Config::broker_user, Config::broker_pass)) {
         Serial.println("connected!");
 
@@ -114,9 +122,9 @@ bool reconnect() {
         client.subscribe(Config::topic_brightness);
         client.subscribe(Config::topic_image);
 
-        Serial.printf("Subscribed to: %s\n", Config::topic_command);
-        Serial.printf("Subscribed to: %s\n", Config::topic_brightness);
-        Serial.printf("Subscribed to: %s\n", Config::topic_image);
+        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_command);
+        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_brightness);
+        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_image);
 
         return true;
     } else {
@@ -133,9 +141,6 @@ bool reconnect() {
 void mqtt_setup() {
     client.setServer(Config::broker_host, Config::broker_port);
     client.setCallback(mqtt_callback);
-    // Note: PubSubClient by default has a 256 byte buffer. If your images are larger,
-    // you might need to increase this.
-    // client.setBufferSize(2048); // Example: for larger payloads
 }
 
 void mqtt_loop() {

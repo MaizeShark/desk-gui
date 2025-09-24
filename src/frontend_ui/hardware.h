@@ -2,6 +2,7 @@
 #define HARDWARE_H
 
 #include "globals.h"
+#include "config.h"
 
 void hardware_init();
 void handle_hardware_inputs();

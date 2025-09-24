@@ -20,14 +20,13 @@ static lv_img_dsc_t artwork_img_dsc;
 // A static copy of the latest info for LVGL async callbacks to safely access
 static MusicInfo static_info_for_lvgl;
 
+// --- PNG Header for verification ---
+static const uint8_t PNG_HEADER[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+const size_t PNG_HEADER_SIZE = sizeof(PNG_HEADER);
+
 // =========================================================================
 // ASYNC LVGL CALLBACKS
 // =========================================================================
-static void update_text_labels_cb(void* user_data) {
-    lv_label_set_text(ui_track_label, static_info_for_lvgl.track);
-    lv_label_set_text(ui_artist_label, static_info_for_lvgl.artist);
-}
-
 static void update_artwork_cb(void* user_data) {
     Serial.println("[LVGL] Async call: Updating artwork.");
     // Pass the pointer to the image descriptor. LVGL will use the data pointer
@@ -36,7 +35,7 @@ static void update_artwork_cb(void* user_data) {
 }
 
 // =========================================================================
-// THE DOWNLOAD TASK - This runs on Core 0
+// THE DOWNLOAD TASK
 // =========================================================================
 void download_image_task(void* parameter) {
     // --- Retry Parameters ---
@@ -50,17 +49,18 @@ void download_image_task(void* parameter) {
             Serial.printf("[Task] Received new info. Downloading from %s\n", info.url);
 
             static_info_for_lvgl = info;
-            lv_async_call(update_text_labels_cb, NULL);
 
             bool download_success = false;
 
             // --- THE RETRY LOOP (without the mutex) ---
             for (int i = 0; i < MAX_DOWNLOAD_RETRIES; i++) {
-                Serial.printf("[Task] Download attempt %d/%d...\n", i + 1, MAX_DOWNLOAD_RETRIES);
+                if (i >= 1) { Serial.printf("[Task] Download attempt %d/%d...\n", i + 1, MAX_DOWNLOAD_RETRIES);};
                 
                 HTTPClient http;
                 http.setTimeout(10000);
                 if (http.begin(info.url)) {
+                    http.setUserAgent("ESP32-Downloader/1.0");
+
                     vTaskDelay(pdMS_TO_TICKS(5)); // Small delay to let the connection stabilize
                     int httpCode = http.GET();
                     if (httpCode == HTTP_CODE_OK) {
@@ -80,30 +80,36 @@ void download_image_task(void* parameter) {
                                     if (bytes_to_read > 0) {
                                         bytes_read += bytes_to_read;
                                     }
-                                } else {
-                                    // A small delay to prevent a tight loop from starving other tasks
-                                    vTaskDelay(pdMS_TO_TICKS(10));
                                 }
+                                vTaskDelay(pdMS_TO_TICKS(1)); // Yield to other tasks
                             }
                             // --- END OF CHUNKED READING ---
-
-                            Serial.printf("[Task] Image downloaded, %d bytes.\n", bytes_read);
 
                             // Important: Only update LVGL if the download was complete
                             if(bytes_read == len) {
                                 // --- PNG Header Verification ---
-                                const uint8_t png_header[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-                                if (memcmp(image_download_buffer, png_header, sizeof(png_header)) == 0) {
+                                if (memcmp(image_download_buffer, PNG_HEADER, PNG_HEADER_SIZE) == 0) {
+
+                                    Serial.printf("[Task] Image successfully downloaded, %d bytes.\n", bytes_read);
                                     // --- Descriptor Update ---
                                     // Clear the struct to avoid any garbage data in the header
                                     memset(&artwork_img_dsc, 0, sizeof(lv_img_dsc_t));
                                     artwork_img_dsc.data = image_download_buffer;
                                     artwork_img_dsc.data_size = len;
+
+                                    lv_image_cache_drop(&artwork_img_dsc); // Clear any cached version of this image
                                     
                                     lv_async_call(update_artwork_cb, NULL);
                                     download_success = true;
                                 } else {
-                                    Serial.println("[Task] ERROR: Downloaded file is not a valid PNG.");
+                                    Serial.println("[Task] ERROR: Downloaded file is not a valid PNG (header mismatch).");
+                                    Serial.print("[Task]   Expected Header: ");
+                                    for(size_t i = 0; i < PNG_HEADER_SIZE; ++i) { Serial.printf("0x%02X ", PNG_HEADER[i]); }
+                                    Serial.println();
+
+                                    Serial.print("[Task]   Received Header: ");
+                                    for(size_t i = 0; i < PNG_HEADER_SIZE; ++i) { Serial.printf("0x%02X ", image_download_buffer[i]); }
+                                    Serial.println();
                                     download_success = false; // Ensure we report failure
                                 }
                             } else {
@@ -111,13 +117,15 @@ void download_image_task(void* parameter) {
                             }
 
                         } else { Serial.printf("[Task] Image size invalid (%d) or too large.\n", len); }
-                    } else { Serial.printf("[Task] HTTP GET failed, code: %d\n", httpCode); }
+                    } else { Serial.printf("[Task] HTTP GET failed, error: %s\n", http.errorToString(httpCode).c_str()); }
                     http.end();
                 } else { Serial.printf("[Task] Unable to connect to %s\n", info.url); }
 
                 if (download_success) {
                     break; 
                 }
+
+                vTaskDelay(pdMS_TO_TICKS(50)); // Make sure Server has time.
 
                 if (i < MAX_DOWNLOAD_RETRIES - 1) {
                     Serial.printf("...waiting %dms before retry.\n", RETRY_DELAY_MS);
@@ -134,11 +142,9 @@ void download_image_task(void* parameter) {
 
 
 // =========================================================================
-// MQTT CALLBACK - This runs on Core 1 (very fast!)
+// MQTT CALLBACK
 // =========================================================================
-static void on_music_info_update(const char* url, const char* track, const char* artist) {
-    Serial.println("MQTT callback received info, queuing for download task...");
-    
+static void on_music_info_update(const char* url, const char* track, const char* artist) {    
     MusicInfo new_info = {0};
 
     strncpy(new_info.url, url, sizeof(new_info.url) - 1);
