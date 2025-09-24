@@ -33,7 +33,6 @@ static void update_artwork_cb(void* user_data) {
     // Pass the pointer to the image descriptor. LVGL will use the data pointer
     // and size from this struct to decode and display the image.
     lv_img_set_src(ui_album_art, &artwork_img_dsc);
-    lv_obj_invalidate(ui_album_art); // Force redraw
 }
 
 // =========================================================================
@@ -102,6 +101,8 @@ void download_image_task(void* parameter) {
                                 memset(&artwork_img_dsc, 0, sizeof(lv_img_dsc_t));
                                 artwork_img_dsc.data = image_download_buffer;
                                 artwork_img_dsc.data_size = len;
+
+                                lv_image_cache_drop(&artwork_img_dsc);
                                 
                                 lv_async_call(update_artwork_cb, NULL);
                                 download_success = true;

@@ -62,6 +62,7 @@ public:
       cfg.bus_shared       = true;
 
       _panel_instance.config(cfg);
+      _panel_instance.setColorDepth(lgfx::v1::color_depth_t::rgb565_2Byte);
     }
 
     // Configure the backlight control settings.
