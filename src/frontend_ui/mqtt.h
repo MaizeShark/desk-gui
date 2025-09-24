@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include "globals.h"
+#include "config.h"
 
 using MusicInfoUpdateCallback = void (*)(const char* url, const char* track, const char* artist);
 

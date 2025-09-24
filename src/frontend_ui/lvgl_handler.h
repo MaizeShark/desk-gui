@@ -2,6 +2,7 @@
 #define LVGL_HANDLER_H
 
 #include "globals.h"
+#include "config.h"
 
 void lvgl_init(); // A new function to contain all LVGL setup
 
