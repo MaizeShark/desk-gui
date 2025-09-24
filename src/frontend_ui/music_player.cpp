@@ -92,20 +92,20 @@ void download_image_task(void* parameter) {
                             // Important: Only update LVGL if the download was complete
                             if(bytes_read == len) {
                                 // --- PNG Header Verification ---
-                                Serial.printf("[Task] PNG Header: %02X %02X %02X %02X %02X %02X %02X %02X\n",
-                                    image_download_buffer[0], image_download_buffer[1], image_download_buffer[2], image_download_buffer[3],
-                                    image_download_buffer[4], image_download_buffer[5], image_download_buffer[6], image_download_buffer[7]);
-
-                                // --- Descriptor Update ---
-                                // Clear the struct to avoid any garbage data in the header
-                                memset(&artwork_img_dsc, 0, sizeof(lv_img_dsc_t));
-                                artwork_img_dsc.data = image_download_buffer;
-                                artwork_img_dsc.data_size = len;
-
-                                lv_image_cache_drop(&artwork_img_dsc);
-                                
-                                lv_async_call(update_artwork_cb, NULL);
-                                download_success = true;
+                                const uint8_t png_header[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+                                if (memcmp(image_download_buffer, png_header, sizeof(png_header)) == 0) {
+                                    // --- Descriptor Update ---
+                                    // Clear the struct to avoid any garbage data in the header
+                                    memset(&artwork_img_dsc, 0, sizeof(lv_img_dsc_t));
+                                    artwork_img_dsc.data = image_download_buffer;
+                                    artwork_img_dsc.data_size = len;
+                                    
+                                    lv_async_call(update_artwork_cb, NULL);
+                                    download_success = true;
+                                } else {
+                                    Serial.println("[Task] ERROR: Downloaded file is not a valid PNG.");
+                                    download_success = false; // Ensure we report failure
+                                }
                             } else {
                                 Serial.printf("[Task] Download incomplete! Expected %d, got %d.\n", len, bytes_read);
                             }
