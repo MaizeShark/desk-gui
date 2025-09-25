@@ -105,7 +105,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         #endif
 
         lv_label_set_text(ui_position_label, track_elapsed_formatted.c_str());
+        lv_slider_set_range(ui_progress_bar, 0, track_length_secs > 0 ? track_length_secs : 1); // Prevent zero range
         lv_label_set_text(ui_length_label, track_length_formatted.c_str());
+        lv_slider_set_value(ui_progress_bar, constrain(track_elapsed_secs, 0, track_length_secs), LV_ANIM_ON);
         
         return; // Done
     }

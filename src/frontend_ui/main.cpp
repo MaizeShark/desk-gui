@@ -20,6 +20,8 @@ CRGB leds[HW::NUM_LEDS];
 lv_color_t* buf = nullptr;
 
 // --- LVGL UI Objects (initialized to nullptr for safety) ---
+lv_obj_t *ui_Screen1      = nullptr;
+lv_obj_t *ui_Screen2      = nullptr;
 lv_obj_t *ui_arc          = nullptr;
 lv_obj_t *ui_value_label  = nullptr;
 lv_obj_t *ui_mode_label   = nullptr;
@@ -27,9 +29,10 @@ lv_obj_t *ui_power_switch = nullptr;
 lv_group_t *encoder_group = nullptr;
 
 // Music Info UI Elements
-lv_obj_t *ui_album_art;
-lv_obj_t *ui_length_label;
-lv_obj_t *ui_position_label;
+lv_obj_t *ui_album_art      = nullptr;
+lv_obj_t *ui_length_label   = nullptr;
+lv_obj_t *ui_position_label = nullptr;
+lv_obj_t *ui_progress_bar   = nullptr;
 
 // --- Global State Variables ---
 int currentMode = 0;
