@@ -20,6 +20,18 @@ void ui_init() {
     lv_obj_set_size(ui_album_art, 480, 320);
     lv_obj_align(ui_album_art, LV_ALIGN_CENTER, 0, 0);
 
+    ui_length_label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(ui_length_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(ui_length_label, lv_color_hex(0xCCCCCC), 0);
+    lv_obj_align(ui_length_label, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
+    lv_label_set_text(ui_length_label, "0:00");
+
+    ui_position_label = lv_label_create(lv_screen_active());
+    lv_obj_set_style_text_font(ui_position_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(ui_position_label, lv_color_hex(0xCCCCCC), 0);
+    lv_obj_align(ui_position_label, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+    lv_label_set_text(ui_position_label, "0:00");
+
     ui_arc = lv_arc_create(lv_screen_active());
     lv_obj_set_size(ui_arc, 220, 220);
     lv_obj_align(ui_arc, LV_ALIGN_CENTER, 0, 10);
