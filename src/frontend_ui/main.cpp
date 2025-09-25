@@ -28,8 +28,8 @@ lv_group_t *encoder_group = nullptr;
 
 // Music Info UI Elements
 lv_obj_t *ui_album_art;
-lv_obj_t *ui_track_label;
-lv_obj_t *ui_artist_label;
+lv_obj_t *ui_length_label;
+lv_obj_t *ui_position_label;
 
 // --- Global State Variables ---
 int currentMode = 0;
@@ -38,7 +38,7 @@ const char *modeNames[] = {"Brightness", "Color Hue", "Position"};
 const int totalModes = sizeof(modeNames) / sizeof(modeNames[0]);
 
 long encoderValue = 50;
-bool ledsOn = true;
+bool ledsOn = false;
 
 // Initial state for input polling
 uint8_t lastPinA_State     = HIGH;

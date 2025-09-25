@@ -9,6 +9,10 @@
         "initializer_list": "cpp",
         "*.gitattributes": "cpp",
         "list": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "cstring": "cpp",
+        "typeinfo": "cpp",
+        "cstdio": "cpp",
+        "bitset": "cpp"
     }
 }

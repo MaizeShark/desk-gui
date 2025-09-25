@@ -18,22 +18,27 @@ long lastReconnectAttempt = 0;
 /**
  * @brief The master callback function for handling all incoming MQTT messages.
  */
+#define MAX_MQTT_PAYLOAD_SIZE 128 
+
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     #ifdef DEBUG_MQTT
         Serial.printf("[MQTT] Message arrived on topic: %s. Length: %u\n", topic, length);
         
-        // To print the payload, we must copy it to a new, null-terminated buffer.
-        char msg_for_debug[length + 1];
-        memcpy(msg_for_debug, payload, length);
-        msg_for_debug[length] = '\0';
-        Serial.printf("[MQTT] Message: %s\n", msg_for_debug);
+        // --- Safe Debug Payload Printing ---
+        // To print the payload, we copy it to a new, null-terminated buffer.
+        // Use a fixed-size buffer to prevent stack overflow from a large payload.
+        char msg_for_debug[MAX_MQTT_PAYLOAD_SIZE + 1];
+        unsigned int len_to_copy = min((unsigned int)MAX_MQTT_PAYLOAD_SIZE, length);
+        memcpy(msg_for_debug, payload, len_to_copy);
+        msg_for_debug[len_to_copy] = '\0';
+        Serial.printf("[MQTT] Message: %s%s\n", msg_for_debug, (length > MAX_MQTT_PAYLOAD_SIZE) ? "..." : "");
     #endif
 
-    // --- Handle Image Topic ---
+    // --- Handle Image Topic (JSON payload) ---
     if (strcmp(topic, Config::topic_image) == 0) {
         JsonDocument doc;
 
-        DeserializationError error = deserializeJson(doc, payload, length, DeserializationOption::NestingLimit(5)); // Good practice
+        DeserializationError error = deserializeJson(doc, payload, length, DeserializationOption::NestingLimit(5));
         if (error) {
             Serial.print(F("[MQTT] deserializeJson() failed: "));
             Serial.println(error.c_str());
@@ -43,7 +48,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         const char* track = doc["track"];
         const char* artist = doc["artist"];
 
-        // Check that we got all the data we expect
         if (url == nullptr || track == nullptr || artist == nullptr) {
             Serial.println("[MQTT] JSON received, but missing required fields (url, track, artist)");
             return;
@@ -57,45 +61,97 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         return; // Done
     }
 
-    // For other topics, we'll probably want a null-terminated string
-    // IMPORTANT: Make a copy to safely null-terminate it.
-    char msg_buffer[length + 1];
+    // --- Handle Music Status Topic ---
+    else if (strcmp(topic, Config::topic_music) == 0) {
+        JsonDocument doc;
+
+        DeserializationError error = deserializeJson(doc, payload, length);
+        if (error) {
+            Serial.print(F("[MQTT] deserializeJson() on music/status failed: "));
+            Serial.println(error.c_str());
+            return;
+        }
+
+        // Check that we got the data we expect.
+        // For numbers, using containsKey() is safer than checking for 0, since 0 can be a valid value.
+        if (!doc["length"].is<int>() || !doc["elapsed"].is<int>()) {
+            Serial.println("[MQTT] JSON on music/status missing required fields (length, elapsed)");
+            return;
+        }
+        
+        // Safely extract the integer values
+        int track_length_secs = doc["length"];
+        int track_elapsed_secs = doc["elapsed"];
+
+        #ifdef DEBUG_MQTT
+            Serial.printf("[MQTT] Music Status Update: %d / %d seconds\n", track_elapsed_secs, track_length_secs);
+        #endif
+
+        // A single, reusable buffer on the stack is highly efficient.
+        // Size 12 is very safe for any reasonable time format.
+        char time_buffer[12];
+
+        // Format the total track length.
+        // "%d:%02d" means: integer, literal ':', 2-digit integer padded with a leading zero.
+        snprintf(time_buffer, sizeof(time_buffer), "%d:%02d", track_length_secs / 60, track_length_secs % 60);
+        String track_length_formatted = String(time_buffer);
+
+        // Reuse the same buffer to format the elapsed time.
+        snprintf(time_buffer, sizeof(time_buffer), "%d:%02d", track_elapsed_secs / 60, track_elapsed_secs % 60);
+        String track_elapsed_formatted = String(time_buffer);
+
+        #ifdef DEBUG_MQTT
+            Serial.printf("[MQTT] Formatted Times - Elapsed: %s, Length: %s\n", track_elapsed_formatted.c_str(), track_length_formatted.c_str());
+        #endif
+
+        lv_label_set_text(ui_position_label, track_elapsed_formatted.c_str());
+        lv_label_set_text(ui_length_label, track_length_formatted.c_str());
+        
+        return; // Done
+    }
+
+
+    // --- Handle other topics (assume C-string payloads) ---
+
+    // SAFE: Check length against our fixed-size buffer to prevent buffer overflow.
+    if (length > MAX_MQTT_PAYLOAD_SIZE) {
+        Serial.printf("[MQTT] Payload on topic '%s' is too large (%u bytes). Ignoring.\n", topic, length);
+        return;
+    }
+
+    char msg_buffer[MAX_MQTT_PAYLOAD_SIZE + 1];
     memcpy(msg_buffer, payload, length);
     msg_buffer[length] = '\0';
-    String message = String(msg_buffer);
 
 
     // --- Handle Brightness Topic ---
     if (strcmp(topic, Config::topic_brightness) == 0) {
-        int brightness = message.toInt();
+        int brightness = atoi(msg_buffer);
         brightness = constrain(brightness, 0, 255); // Safety check
         Serial.printf("[SYSTEM] Setting display brightness to %d\n", brightness);
         my_lcd.setBrightness(brightness);
-        // Optional: you could re-publish here to confirm the change, but it
-        // might cause a loop if the other side isn't careful.
-        // It's better to only publish when the value is changed *locally*.
     }
 
     // --- Handle Command Topic ---
     else if (strcmp(topic, Config::topic_command) == 0) {
-        Serial.printf("[MQTT] Received command: %s\n", message.c_str());
-        if (message.equalsIgnoreCase("reboot")) {
+        Serial.printf("[MQTT] Received command: %s\n", msg_buffer);
+
+        // EFFICIENT: Use strcasecmp() for case-insensitive comparison instead of String.equalsIgnoreCase()
+        if (strcasecmp(msg_buffer, "reboot") == 0) {
             Serial.println("[SYSTEM] Rebooting device...");
             publish_status("[SYSTEM] rebooting");
-            delay(200);
+            delay(200); // Allow time for MQTT message to send
             ESP.restart();
         } 
-        else if (message.equalsIgnoreCase("led_on")) {
+        else if (strcasecmp(msg_buffer, "led_on") == 0) {
             Serial.println("[SYSTEM] Turning LEDs on");
-            // Your logic to turn LEDs on
             ledsOn = true;
         }
-        else if (message.equalsIgnoreCase("led_off")) {
+        else if (strcasecmp(msg_buffer, "led_off") == 0) {
             Serial.println("[SYSTEM] Turning LEDs off");
-            // Your logic to turn LEDs off
             ledsOn = false;
         }
-        // Add more else-if blocks for other commands
+        //TODO: Add more else-if blocks for other commands
         else {
             Serial.println("[MQTT] Unknown command");
         }
@@ -121,10 +177,15 @@ bool reconnect() {
         client.subscribe(Config::topic_command);
         client.subscribe(Config::topic_brightness);
         client.subscribe(Config::topic_image);
-
-        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_command);
-        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_brightness);
-        Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_image);
+        client.subscribe(Config::topic_music);
+        
+        #ifdef DEBUG_MQTT
+            Serial.println("[MQTT] Subscribed to topics:");
+            Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_command);
+            Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_brightness);
+            Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_image);
+            Serial.printf("[MQTT] Subscribed to: %s\n", Config::topic_music);
+        #endif
 
         return true;
     } else {

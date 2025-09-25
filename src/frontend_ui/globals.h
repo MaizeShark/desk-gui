@@ -30,6 +30,9 @@ extern lv_obj_t *ui_power_switch;
 // --- Music Info UI Elements ---
 extern lv_obj_t *ui_album_art;
 
+extern lv_obj_t *ui_length_label;
+extern lv_obj_t *ui_position_label;
+
 extern lv_group_t *encoder_group;
 
 // --- Global State Variables ---
