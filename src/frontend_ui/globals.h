@@ -21,17 +21,22 @@ extern CRGB leds[HW::NUM_LEDS];
 extern lv_color_t* buf;
 
 // --- LVGL UI Objects ---
-// LED Control UI Elements
+
+// Top-level Screen Objects
+extern lv_obj_t *ui_Screen1;
+extern lv_obj_t *ui_Screen2;
+
+// --- Screen 1 UI Elements ---
+extern lv_obj_t *ui_album_art;
+extern lv_obj_t *ui_length_label;
+extern lv_obj_t *ui_position_label;
+extern lv_obj_t *ui_progress_bar;
+
+// --- Screen 2 UI Elements ---
 extern lv_obj_t *ui_arc;
 extern lv_obj_t *ui_value_label;
 extern lv_obj_t *ui_mode_label;
 extern lv_obj_t *ui_power_switch;
-
-// --- Music Info UI Elements ---
-extern lv_obj_t *ui_album_art;
-
-extern lv_obj_t *ui_length_label;
-extern lv_obj_t *ui_position_label;
 
 extern lv_group_t *encoder_group;
 
