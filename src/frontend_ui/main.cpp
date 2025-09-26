@@ -1,3 +1,5 @@
+// src/main.cpp
+
 #include "globals.h"
 #include "lvgl_handler.h"
 #include "ui.h"
@@ -5,12 +7,10 @@
 #include "mqtt.h"
 #include <WiFi.h>
 #include "music_player.h"
-#include "spotify.h"
 #include "config.h"
 
 // =========================================================================
 // DEFINITIONS of Global Variables (declared as 'extern' in globals.h)
-// This is where the memory for them is actually allocated.
 // =========================================================================
 
 // --- Hardware Objects & Buffers ---
@@ -18,62 +18,50 @@ LGFX my_lcd;
 TCA9535 TCA(HW::TCA_I2C_ADDR);
 CRGB leds[HW::NUM_LEDS];
 lv_color_t* buf = nullptr;
+lv_obj_t *ui_Screen1 = nullptr, *ui_Screen2 = nullptr, *ui_arc = nullptr,
+         *ui_value_label = nullptr, *ui_mode_label = nullptr, *ui_power_switch = nullptr,
+         *ui_album_art = nullptr, *ui_length_label = nullptr, *ui_position_label = nullptr,
+         *ui_progress_bar = nullptr;
 
-// --- LVGL UI Objects (initialized to nullptr for safety) ---
-lv_obj_t *ui_Screen1      = nullptr;
-lv_obj_t *ui_Screen2      = nullptr;
-lv_obj_t *ui_arc          = nullptr;
-lv_obj_t *ui_value_label  = nullptr;
-lv_obj_t *ui_mode_label   = nullptr;
-lv_obj_t *ui_power_switch = nullptr;
 lv_group_t *encoder_group = nullptr;
-
-// Music Info UI Elements
-lv_obj_t *ui_album_art      = nullptr;
-lv_obj_t *ui_length_label   = nullptr;
-lv_obj_t *ui_position_label = nullptr;
-lv_obj_t *ui_progress_bar   = nullptr;
-
-// --- Global State Variables ---
 int currentMode = 0;
 const char *modeNames[] = {"Brightness", "Color Hue", "Position"};
-// This automatically calculates the number of modes. Robust!
-const int totalModes = sizeof(modeNames) / sizeof(modeNames[0]);
+const int totalModes = sizeof(modeNames) / sizeof(modeNames[0]); // Calculate number of modes
 
 long encoderValue = 50;
 bool ledsOn = false;
-
-// Initial state for input polling
-uint8_t lastPinA_State     = HIGH;
-uint8_t lastEncSwitchState = HIGH;
-uint8_t lastButton1State   = HIGH;
-uint8_t lastButton2State   = HIGH;
-
+uint8_t lastPinA_State = HIGH, lastEncSwitchState = HIGH, lastButton1State = HIGH, lastButton2State = HIGH;
 long last_lvgl_encoder_val = 0;
 
-// WiFi setup
-void setup_wifi() {
-    delay(10);
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(Config::ssid);
+// =========================================================================
+// WIFI & NETWORK EVENT HANDLING
+// =========================================================================
+
+// Forward declarations for WiFi event handlers
+void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
+void onWiFiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info);
+
+void setup_wifi_robust() {
+    // Register event handlers BEFORE connecting
+    WiFi.onEvent(onWiFiGotIP, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(onWiFiDisconnect, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.mode(WIFI_STA);
     WiFi.begin(Config::ssid, Config::pass);
-    int wifi_attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && wifi_attempts < 20) {
-        delay(500);
-        Serial.print(".");
-        wifi_attempts++;
-    }
-    if (WiFi.status() != WL_CONNECTED && wifi_attempts >= 20) {
-        Serial.println("\nFailed to connect to WiFi.");
-        Serial.println("Please check your SSID and password in Config.h");
-        Serial.println("Restarting in 2 seconds to reset...");
-        delay(2000);
-        ESP.restart();
-    }
-    Serial.println("\nWiFi connected");
-    Serial.print("IP address: ");
+    Serial.printf("[Setup] Connecting to %s ", Config::ssid);
+}
+
+void onWiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+    Serial.println("\n[Setup] WiFi connected!");
+    Serial.print("[Setup] IP address: ");
     Serial.println(WiFi.localIP());
+
+    mqtt_setup();
+}
+
+// This function is CALLED AUTOMATICALLY when WiFi disconnects
+void onWiFiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info) {
+    Serial.println("\n[Setup] WiFi lost connection. Reconnecting...");
+    // The ESP32 WiFi library will attempt to reconnect automatically.
 }
 
 // =========================================================================
@@ -81,20 +69,20 @@ void setup_wifi() {
 // =========================================================================
 void setup() {
     Serial.begin(115200);
-    Serial.println("Starting up...");
+    Serial.println("[Setup] Booting up...");
 
+    // STEP 1: Connect to the network first.
+    setup_wifi_robust();
+
+    // STEP 2: Initialize hardware, display, and UI.
     hardware_init();
     lvgl_init();
     ui_init();
-    setup_wifi();
     
-    spotify_setup();
-    test_spotify();
-
-    mqtt_setup();
+    // STEP 3: Initialize other application logic.
     music_player_init();
 
-    Serial.println("Setup complete.");
+    Serial.println("[Setup] Setup complete. Main loop is starting.");
 }
 
 void loop() {
@@ -105,5 +93,6 @@ void loop() {
     FastLED.show();
     
     lv_timer_handler();
+    // A small delay is crucial to prevent starving the idle task,
     delay(5);
 }

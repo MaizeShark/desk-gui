@@ -158,14 +158,14 @@ static void on_music_info_update(const char* url, const char* track, const char*
 // PUBLIC INIT FUNCTION
 // =========================================================================
 void music_player_init() {
-    Serial.println("Music Player module initializing...");
+    Serial.println("[Music Player] module initializing...");
 
     image_download_buffer = (uint8_t*) ps_malloc(MAX_IMAGE_SIZE);
     if (image_download_buffer == nullptr) {
-        Serial.println("FATAL: Failed to allocate image buffer in PSRAM!");
+        Serial.println("[Music Player] FATAL: Failed to allocate image buffer in PSRAM!");
         return;
     }
-    Serial.printf("Successfully allocated %d KB image buffer in PSRAM.\n", MAX_IMAGE_SIZE / 1024);
+    Serial.printf("[Music Player] Successfully allocated %d KB image buffer in PSRAM.\n", MAX_IMAGE_SIZE / 1024);
 
     music_info_queue = xQueueCreate(5, sizeof(MusicInfo));
 
