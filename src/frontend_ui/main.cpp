@@ -25,12 +25,14 @@ lv_obj_t *ui_Screen1 = nullptr, *ui_Screen2 = nullptr, *ui_arc = nullptr,
 
 lv_group_t *encoder_group = nullptr;
 int currentMode = 0;
-const char *modeNames[] = {"Brightness", "Color Hue", "Position"};
+const char *modeNames[] = {"Brightness", "Color Hue", "Position", "Volume"};
 const int totalModes = sizeof(modeNames) / sizeof(modeNames[0]); // Calculate number of modes
+
+static unsigned long lastMemCheck = 0;
 
 long encoderValue = 50;
 bool ledsOn = false;
-uint8_t lastPinA_State = HIGH, lastEncSwitchState = HIGH, lastButton1State = HIGH, lastButton2State = HIGH;
+uint8_t lastPinA_State = HIGH, lastPinB_State = HIGH, lastEncSwitchState = HIGH, lastButton1State = HIGH, lastButton2State = HIGH;
 long last_lvgl_encoder_val = 0;
 
 // =========================================================================
@@ -89,8 +91,15 @@ void loop() {
     mqtt_loop();
     handle_hardware_inputs();
     sync_ui_with_state();
+    update_volume(encoderValue);
     update_leds();
     FastLED.show();
+
+    if (millis() - lastMemCheck > 10000) { // Every 10 seconds
+        lastMemCheck = millis();
+        Serial.printf("Free Heap: %u bytes, Min Free Heap: %u bytes\n",
+                      ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    }
     
     lv_timer_handler();
     // A small delay is crucial to prevent starving the idle task,

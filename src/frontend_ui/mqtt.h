@@ -34,6 +34,18 @@ void publish_status(const char* message);
 void publish_brightness(uint8_t brightness);
 
 /**
+ * @brief Publishes the current elapsed time value to Config::topic_position_set.
+ * @param elapsed The elapsed time in seconds.
+ */
+void publish_elapsed_time(uint16_t elapsed);
+
+/**
+ * @brief Publishes the current volume value to Config::topic_volume_set if in Volume mode.
+ * @param volume The volume value (0-100).
+ */
+void update_volume(long volume);
+
+/**
  * @brief Checks if the MQTT client is currently connected.
  * @return true if connected, false otherwise.
  */
