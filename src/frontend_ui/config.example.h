@@ -27,6 +27,7 @@ namespace Config {
     constexpr const char* topic_command          = "esp-gui/command";
     constexpr const char* topic_brightness       = "esp-gui/brightness";
     constexpr const char* topic_image            = "music/image";
+    constexpr const char* topic_position_set     = "music/position/set"; // Topic to publish elapsed time to
 
     // --- Spotify Credentials ---
     // You need to create an app in the Spotify Developer Dashboard

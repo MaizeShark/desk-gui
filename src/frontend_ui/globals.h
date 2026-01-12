@@ -50,6 +50,7 @@ extern bool ledsOn;
 
 // For tracking hardware input state
 extern uint8_t lastPinA_State;
+extern uint8_t lastPinB_State;
 extern uint8_t lastEncSwitchState;
 extern uint8_t lastButton1State;
 extern uint8_t lastButton2State;

@@ -1,4 +1,5 @@
 #include "hardware.h"
+#include "ui.h"
 
 void hardware_init() {
     my_lcd.init();
@@ -39,6 +40,7 @@ void handle_hardware_inputs() {
     if (currentMode == 0) maxVal = 100;
     if (currentMode == 1) maxVal = 255;
     if (currentMode == 2) maxVal = HW::NUM_LEDS - 1;
+    if (currentMode == 3) maxVal = 100; // Volume 0-100%
     encoderValue = constrain(encoderValue, minVal, maxVal);
 
     // --- Process Buttons ---
@@ -46,13 +48,14 @@ void handle_hardware_inputs() {
     if (encSwitchState == LOW && lastEncSwitchState == HIGH) { ledsOn = !ledsOn; }
     lastEncSwitchState = encSwitchState;
 
+    // --- Back Button ---
     uint8_t button1State = (pinStates >> HW::BUTTON_1_PIN) & 1;
     if (button1State == LOW && lastButton1State == HIGH) {
-        currentMode = (currentMode + 1) % totalModes;
-        encoderValue = lv_arc_get_value(ui_arc);
+        lv_scr_load(ui_Screen1);
     }
     lastButton1State = button1State;
 
+    // --- Switch Button ---
     uint8_t button2State = (pinStates >> HW::BUTTON_2_PIN) & 1;
     if (button2State == LOW && lastButton2State == HIGH) {
         currentMode = (currentMode - 1);
@@ -80,6 +83,10 @@ void update_leds() {
             FastLED.setBrightness(200);
             FastLED.clear();
             leds[encoderValue] = CRGB::Red;
+            break;
+        case 3:
+            FastLED.setBrightness(0);
+            fill_solid(leds, HW::NUM_LEDS, CRGB::Blue);
             break;
     }
 }

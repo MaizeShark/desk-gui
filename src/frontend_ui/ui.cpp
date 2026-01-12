@@ -5,6 +5,8 @@ LV_FONT_DECLARE(delius20_numbers);
 void ui_Screen1_screen_init(void);
 void ui_Screen2_screen_init(void);
 
+void publish_elapsed_time(uint16_t elapsed);
+
 static void arc_event_cb(lv_event_t * e) {
     lv_obj_t * arc = (lv_obj_t *)lv_event_get_target(e);
     encoderValue = lv_arc_get_value(arc);
@@ -24,6 +26,19 @@ static void event_go_to_screen1(lv_event_t * e) {
     lv_screen_load(ui_Screen1);
 }
 
+static void progress_bar_event_cb(lv_event_t * e) {
+    lv_obj_t * slider = (lv_obj_t *)lv_event_get_target(e);
+    lv_event_code_t code = lv_event_get_code(e);
+
+    // Reagiere nur, wenn der Wert sich geändert hat
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        int32_t value = lv_slider_get_value(slider);
+        
+        // Rufe hier deine MQTT-Funktion auf, um die neue Position zu senden
+        publish_elapsed_time(value); 
+    }
+}
+
 
 // --- SCREEN 1 INITIALIZATION (Display Screen) ---
 // This screen shows information but has no main controls.
@@ -38,13 +53,17 @@ void ui_Screen1_screen_init(void) {
     ui_length_label = lv_label_create(ui_Screen1);
     lv_obj_set_style_text_font(ui_length_label, &delius20_numbers, 0);
     lv_obj_set_style_text_color(ui_length_label, lv_color_hex(0xD2D2D2), 0);
-    lv_obj_align(ui_length_label, LV_ALIGN_BOTTOM_RIGHT, -25, -22);
+    lv_obj_set_width(ui_length_label, 85);
+    lv_obj_align(ui_length_label, LV_ALIGN_BOTTOM_RIGHT, -2, -25);
+    lv_obj_set_style_text_align(ui_length_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_label_set_text(ui_length_label, "0:00");
 
     ui_position_label = lv_label_create(ui_Screen1);
     lv_obj_set_style_text_font(ui_position_label, &delius20_numbers, 0);
     lv_obj_set_style_text_color(ui_position_label, lv_color_hex(0xD2D2D2), 0);
-    lv_obj_align(ui_position_label, LV_ALIGN_BOTTOM_LEFT, 25, -22);
+    lv_obj_set_width(ui_position_label, 85);
+    lv_obj_align(ui_position_label, LV_ALIGN_BOTTOM_LEFT, 2, -25);
+    lv_obj_set_style_text_align(ui_position_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_label_set_text(ui_position_label, "0:00");
 
     ui_progress_bar = lv_slider_create(ui_Screen1);
@@ -64,6 +83,7 @@ void ui_Screen1_screen_init(void) {
     // Knob part
     lv_obj_set_style_bg_color(ui_progress_bar, lv_color_hex(0xE5E5E5), LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_progress_bar, 255, LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(ui_progress_bar, progress_bar_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     // Button to navigate to the Controls screen
     lv_obj_t * screen2_btn = lv_button_create(ui_Screen1);
@@ -151,5 +171,6 @@ void sync_ui_with_state() {
         if (currentMode == 0) lv_arc_set_range(ui_arc, 0, 100);
         if (currentMode == 1) lv_arc_set_range(ui_arc, 0, 255);
         if (currentMode == 2) lv_arc_set_range(ui_arc, 0, HW::NUM_LEDS - 1);
+        if (currentMode == 3) lv_arc_set_range(ui_arc, 0, 100); // Volume 0-100%
     }
 }
