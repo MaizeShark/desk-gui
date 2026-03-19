@@ -24,8 +24,8 @@ from urllib.parse import urlparse, parse_qs, urlencode
 # --- STEP 1: PASTE YOUR SPOTIFY APP CREDENTIALS HERE ---
 # You can get these from your Spotify Developer Dashboard:
 # https://developer.spotify.com/dashboard/
-CLIENT_ID = "***REMOVED***"
-CLIENT_SECRET = "***REMOVED***"
+CLIENT_ID = "7270af283ac647ed8ba230b5826f7d1b"
+CLIENT_SECRET = "208eae8bce8b43c1b7a6ea0766d6151e"
 
 # --- Configuration (usually no need to change) ---
 PORT = 8888
